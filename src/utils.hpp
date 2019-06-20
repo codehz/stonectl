@@ -222,3 +222,14 @@ void start_nsgod(size_t) {
   posix_spawn(&pid, ".stone/nsgod", nullptr, nullptr, (char *const *)xarg, (char *const *)xenv);
   wait(nullptr);
 }
+
+std::string_view print_level(int level) {
+  switch (level) {
+  case 0: return "\033[90mT";
+  case 1: return "\033[33mD";
+  case 2: return "\033[32mI";
+  case 3: return "\033[31mW";
+  case 4: return "\033[91mE";
+  default: return "\033[101mU";
+  }
+}

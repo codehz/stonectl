@@ -36,8 +36,8 @@ ExternalProject_Add(curl_ep
   URL https://curl.haxx.se/download/curl-7.65.1.tar.gz
   URL_HASH MD5=6f31ec164741cc6aaac461d4b38ffdbe
   BUILD_IN_SOURCE ON
-  CONFIGURE_COMMAND ./buildconf &&
-    ./configure
+  CONFIGURE_COMMAND ./buildconf
+  COMMAND ./configure
     --disable-shared
     --enable-static
     --disable-ldap
@@ -102,7 +102,8 @@ ExternalProject_Add(tar_ep
   URL https://github.com/tklauser/libtar/archive/v1.2.20.tar.gz
   URL_HASH MD5=dcdcdf8cfbbd3df3862198b0897071b6
   BUILD_IN_SOURCE ON
-  CONFIGURE_COMMAND autoreconf --force --install && ./configure -prefix=<INSTALL_DIR>
+  CONFIGURE_COMMAND autoreconf --force --install
+  COMMAND ./configure -prefix=<INSTALL_DIR>
   BUILD_COMMAND make
   INSTALL_COMMAND make install
 )
@@ -114,10 +115,28 @@ target_link_libraries(tar INTERFACE
 )
 target_include_directories(tar INTERFACE ${ROOTFS}/include)
 
+ExternalProject_Add(editline_ep
+  PREFIX deps/editline
+  INSTALL_DIR ${ROOTFS}
+  URL https://github.com/troglobit/editline/releases/download/1.16.1/editline-1.16.1.tar.xz
+  URL_HASH MD5=df6d7deac03da1b627f9252db984820e
+  BUILD_IN_SOURCE ON
+  CONFIGURE_COMMAND ./configure -prefix=<INSTALL_DIR>
+  BUILD_COMMAND make
+  INSTALL_COMMAND make install
+)
+
+add_library(editline INTERFACE IMPORTED)
+add_dependencies(editline editline_ep)
+target_link_libraries(editline INTERFACE
+  ${ROOTFS}/lib/libeditline.a
+)
+target_include_directories(editline INTERFACE ${ROOTFS}/include)
+
 add_executable(stonectl src/main.cpp)
 if(${BUILD_STATIC_STONECTL})
   target_link_libraries(stonectl -static)
 endif()
-target_link_libraries(stonectl rpcws CLI11 stone-api curl zlib tar stdc++fs)
+target_link_libraries(stonectl rpcws CLI11 stone-api curl zlib tar editline stdc++fs pthread)
 set_property(TARGET stonectl PROPERTY INTERPROCEDURAL_OPTIMIZATION True)
 set_property(TARGET stonectl PROPERTY CXX_STANDARD 17)

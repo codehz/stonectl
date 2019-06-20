@@ -1,10 +1,17 @@
 #define API_MODE 1
 #include <CLI/CLI.hpp>
+#include <condition_variable>
 #include <curl/curl.h>
+#include <editline.h>
 #include <filesystem>
+#include <iostream>
+#include <mutex>
 #include <rpcws.hpp>
 #include <signal.h>
+#include <thread>
+
 #include <stone-api/Command.h>
+#include <stone-api/Core.h>
 
 #include "utils.hpp"
 
@@ -252,12 +259,72 @@ int main(int argc, char **argv) {
     ep->wait();
   });
   auto attach = app.add_subcommand("attach", "attach to service's command interface");
-  stop->add_option("service", "attach-service"_str, "target service name")->check(CLI::ExistingDirectory & service_name_validator);
+  attach->add_option("service", "attach-service"_str, "target service name")->check(CLI::ExistingDirectory & service_name_validator);
+  attach->add_option("--as", "attach-executor"_str, "executor name")->default_val("stonectl");
   attach->callback([] {
     handle_fail([] {
-      api::endpoint() = std::make_unique<RPC::Client>(std::make_unique<client_wsio>("ws+unix://" + "attach-service"_str + "/api.socket", ep));
+      using namespace api;
+
+      auto prompt = "attach-service"_str + "> ";
+
+      endpoint() = std::make_unique<RPC::Client>(std::make_unique<client_wsio>("ws+unix://" + "attach-service"_str + "/api.socket", ep));
+      CoreService core;
+      CommandService command;
+
+      bool ready = false;
+      bool error = false;
+      bool wait  = false;
+      std::mutex mtx;
+      std::condition_variable cv;
+
+      std::thread worker([&] {
+        endpoint()
+            ->start()
+            .then([&] {
+              std::unique_lock lk{ mtx };
+              ready = true;
+              cv.notify_all();
+            })
+            .fail([&](auto) {
+              std::unique_lock lk{ mtx };
+              error = true;
+              ready = true;
+              cv.notify_all();
+            });
+        ep->wait();
+      });
+
+      worker.detach();
+
+      {
+        std::unique_lock lk{ mtx };
+        cv.wait(lk, [&] { return ready; });
+        if (error) return;
+      }
+
+      ready = false;
+
+      char *line;
+      while ((line = readline(prompt.c_str()))) {
+        ready = false;
+        command.execute({ "attach-executor"_str, line })
+            .then([&](auto result) {
+              std::unique_lock lk{ mtx };
+              std::cout << result;
+              ready = true;
+              cv.notify_all();
+            })
+            .fail([&](auto) {
+              std::unique_lock lk{ mtx };
+              error = true;
+              ready = true;
+              cv.notify_all();
+            });
+        std::unique_lock lk{ mtx };
+        cv.wait(lk, [&] { return ready; });
+        if (error) return;
+      }
     });
-    ep->wait();
   });
   CLI11_PARSE(app, argc, argv);
 }
