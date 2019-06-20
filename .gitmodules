@@ -1,0 +1,9 @@
+[submodule "deps/wsrpc"]
+	path = deps/wsrpc
+	url = https://github.com/codehz/wsrpc
+[submodule "deps/CLI11"]
+	path = deps/CLI11
+	url = https://github.com/CLIUtils/CLI11
+[submodule "deps/api"]
+	path = deps/api
+	url = https://github.com/codehz/StoneAPI
