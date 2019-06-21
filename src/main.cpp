@@ -8,8 +8,11 @@
 #include <mutex>
 #include <rpcws.hpp>
 #include <signal.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 #include <thread>
 
+#include <stone-api/Chat.h>
 #include <stone-api/Command.h>
 #include <stone-api/Core.h>
 
@@ -210,7 +213,6 @@ int main(int argc, char **argv) {
             });
           })
           .then<promise<void>>([] {
-            std::cout << "hit" << std::endl;
             return promise<void>::map_all(std::vector<std::string>{ "stop-service"_vstr }, [](std::string const &input) -> promise<void> {
               return nsgod()
                   .call("kill", json::object({
@@ -222,7 +224,7 @@ int main(int argc, char **argv) {
             });
           })
           .then([] {
-            std::cout << "killed "
+            std::cout << "sent SIGTERM signal to "
                       << "stop-service"_vstr.size() << " service(s)" << std::endl;
             ep->shutdown();
           })
@@ -265,65 +267,68 @@ int main(int argc, char **argv) {
     handle_fail([] {
       using namespace api;
 
-      auto prompt = "attach-service"_str + "> ";
+      static auto prompt = "attach-service"_str + "> ";
 
       endpoint() = std::make_unique<RPC::Client>(std::make_unique<client_wsio>("ws+unix://" + "attach-service"_str + "/api.socket", ep));
-      CoreService core;
-      CommandService command;
+      static CoreService core;
+      static CommandService command;
+      static ChatService chat;
 
-      bool ready = false;
-      bool error = false;
-      bool wait  = false;
-      std::mutex mtx;
-      std::condition_variable cv;
+      constexpr auto wrapped_output = +[](std::string const &data) {
+        if (data.length() == 0) return;
 
-      std::thread worker([&] {
-        endpoint()
-            ->start()
-            .then([&] {
-              std::unique_lock lk{ mtx };
-              ready = true;
-              cv.notify_all();
-            })
-            .fail([&](auto) {
-              std::unique_lock lk{ mtx };
-              error = true;
-              ready = true;
-              cv.notify_all();
-            });
-        ep->wait();
+        char *saved_line;
+        int saved_point;
+        saved_point = rl_point;
+        saved_line  = strndup(rl_line_buffer, rl_end);
+        guard free_line{ [&] { free(saved_line); } };
+        rl_set_prompt("");
+        rl_forced_update_display();
+        std::cout << data;
+        rl_set_prompt(prompt.c_str());
+        rl_insert_text(saved_line);
+        rl_point = saved_point;
+        rl_forced_update_display();
+      };
+
+      endpoint()->start().then([&] {
+        struct termios term;
+        tcgetattr(STDIN_FILENO, &term);
+        term.c_lflag &= ~ICANON;
+        term.c_cc[VTIME] = 1;
+        tcsetattr(STDIN_FILENO, TCSANOW, &term);
+
+        rl_callback_handler_install(prompt.c_str(), [](char *line) {
+          if (line == nullptr) {
+            ep->shutdown();
+            return;
+          }
+          guard line_guard{ [&] { free(line); } };
+          if (line[0] == '/')
+            command.execute({ "attach-executor"_str, line }).then(wrapped_output).fail(handle_fail<std::exception_ptr>);
+          else
+            chat.send({ "attach-executor"_str, line });
+        });
+
+        core.log >> [](LogEntry const &entry) {
+          std::stringstream ss;
+          ss << print_level(entry.level) << " [" << entry.tag << "] " << entry.content << "\033[0m\n";
+          wrapped_output(ss.str());
+        };
+
+        ep->add(EPOLLIN, STDIN_FILENO, ep->reg([](epoll_event const &e) {
+          if (e.events & EPOLLERR || e.events & EPOLLHUP) {
+            std::cout << "bye!" << std::endl;
+            ep->shutdown();
+            return;
+          }
+          int nread;
+          ioctl(STDIN_FILENO, FIONREAD, &nread);
+          if (nread <= 0) { ep->shutdown(); }
+          rl_callback_read_char();
+        }));
       });
-
-      worker.detach();
-
-      {
-        std::unique_lock lk{ mtx };
-        cv.wait(lk, [&] { return ready; });
-        if (error) return;
-      }
-
-      ready = false;
-
-      char *line;
-      while ((line = readline(prompt.c_str()))) {
-        ready = false;
-        command.execute({ "attach-executor"_str, line })
-            .then([&](auto result) {
-              std::unique_lock lk{ mtx };
-              std::cout << result;
-              ready = true;
-              cv.notify_all();
-            })
-            .fail([&](auto) {
-              std::unique_lock lk{ mtx };
-              error = true;
-              ready = true;
-              cv.notify_all();
-            });
-        std::unique_lock lk{ mtx };
-        cv.wait(lk, [&] { return ready; });
-        if (error) return;
-      }
+      ep->wait();
     });
   });
   CLI11_PARSE(app, argc, argv);
