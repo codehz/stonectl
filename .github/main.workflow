@@ -4,6 +4,6 @@ workflow "do build" {
 }
 
 action "build" {
-  uses = "codehz/alpine-builder/action@206bb8ea6db32acefa8b493e4d63b867656e77db"
+  uses = "codehz/alpine-builder/action@ed273290a31e8c8d927d5b2b51fb58bafb661848"
   args = "-DBUILD_STATIC_STONECTL=ON"
 }
