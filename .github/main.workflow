@@ -1,5 +1,5 @@
 workflow "do build" {
-  on = "push"
+  on = "repository_dispatch"
   resolves = ["codehz/alpine-builder/action@master"]
 }
 
