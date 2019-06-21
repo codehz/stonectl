@@ -1,5 +1,5 @@
 workflow "do build" {
-  on = "push"
+  on = "release"
   resolves = ["release"]
 }
 
