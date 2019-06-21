@@ -141,5 +141,5 @@ target_link_libraries(stonectl rpcws CLI11 stone-api curl zlib tar editline stdc
 set_property(TARGET stonectl PROPERTY INTERPROCEDURAL_OPTIMIZATION True)
 set_property(TARGET stonectl PROPERTY CXX_STANDARD 17)
 
-install(TARGETS stonectl nsgod
+install(TARGETS stonectl
         RUNTIME DESTINATION bin)
