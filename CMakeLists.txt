@@ -140,3 +140,6 @@ endif()
 target_link_libraries(stonectl rpcws CLI11 stone-api curl zlib tar editline stdc++fs)
 set_property(TARGET stonectl PROPERTY INTERPROCEDURAL_OPTIMIZATION True)
 set_property(TARGET stonectl PROPERTY CXX_STANDARD 17)
+
+install(TARGETS stonectl nsgod
+        RUNTIME DESTINATION bin)
