@@ -67,7 +67,7 @@ void untar(int infile, std::filesystem::path prefix, char const *name) {
     path target = prefix / th_get_pathname(tar);
     printf("\r\033[2K[%-5s]Writing %s", name, target.c_str());
     fflush(stdout);
-    if (exists(target)) remove(target);
+    if (exists(target) && is_regular_file(target)) remove(target);
     if (tar_extract_file(tar, target.string().data()) != 0) throw std::runtime_error(std::string("tar extract failed: ") + strerror(errno));
   }
   if (i != 1) throw std::runtime_error(std::string("tar extract failed: ") + strerror(errno));
