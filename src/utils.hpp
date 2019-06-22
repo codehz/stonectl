@@ -188,7 +188,7 @@ template <components C> struct components_info {
 
       lseek(temp, 0, SEEK_SET);
       try {
-        untar(temp, base.string().data());
+        untar(temp, base.string().data(), name());
       } catch (std::exception &ex) {
         fprintf(stderr, "[%-5s]Failed to extract: %s", name(), ex.what());
         return;
@@ -198,7 +198,7 @@ template <components C> struct components_info {
         create_directory(base / "tmp");
         create_directory(base / "dev");
       }
-      printf("[%-5s]Done.\n", name());
+      printf("\n[%-5s]Done.\n", name());
     }
   }
 };

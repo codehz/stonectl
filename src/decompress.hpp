@@ -3,14 +3,15 @@
 #define _GNU_SOURCE
 #endif
 
-#include <errno.h>
 #include <cstdio>
+#include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
 #include <libtar.h>
 #include <stdexcept>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/param.h>
 #include <zlib.h>
 
 #define CHUNK 16384
@@ -55,11 +56,19 @@ template <typename R, typename F> void degz(R eat, F feed) {
   } while (!done);
 }
 
-void untar(int infile, char *prefix) {
+void untar(int infile, std::filesystem::path prefix, char const *name) {
   using namespace std::filesystem;
   TAR *tar{};
   auto ret = tar_fdopen(&tar, infile, "!.tar", NULL, O_RDONLY, 0, 0);
   if (ret != 0) throw std::runtime_error("tar stream init failed");
   guard tar_guard{ [&] { tar_close(tar); } };
-  if (tar_extract_all(tar, prefix) != 0) { throw std::runtime_error(std::string("tar extract failed: ") + strerror(errno)); }
+  int i;
+  while ((i = th_read(tar)) == 0) {
+    path target = prefix / th_get_pathname(tar);
+    printf("\r\033[2K[%-5s]Writing %s", name, target.c_str());
+    fflush(stdout);
+    if (exists(target)) remove(target);
+    if (tar_extract_file(tar, target.string().data()) != 0) throw std::runtime_error(std::string("tar extract failed: ") + strerror(errno));
+  }
+  if (i != 1) throw std::runtime_error(std::string("tar extract failed: ") + strerror(errno));
 }
