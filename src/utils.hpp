@@ -157,10 +157,15 @@ template <components C> struct components_info {
     curl_multi_add_handle(cm, eh);
   }
 
-  static void extract() {
+  static void extract(CURLcode code) {
     using namespace std::filesystem;
     fflush(memfile());
     enabled() = false;
+
+    if (code != CURLE_OK) {
+      printf("\n[%-5s]Failed to download (%s)\n", name(), url());
+      return;
+    }
 
     if constexpr (C == components::nsgod) {
       printf("\r\033[2K[%-5s]Writing...(%4.1f MB)\n", name(), (double)size() / 1048576);

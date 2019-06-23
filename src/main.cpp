@@ -130,9 +130,9 @@ int main(int argc, char **argv) {
           curl_multi_remove_handle(cm, e);
           curl_easy_cleanup(e);
           switch (*pcomp) {
-          case components::core: components_info<components::core>::extract(); break;
-          case components::game: components_info<components::game>::extract(); break;
-          case components::nsgod: components_info<components::nsgod>::extract(); break;
+          case components::core: components_info<components::core>::extract(msg->data.result); break;
+          case components::game: components_info<components::game>::extract(msg->data.result); break;
+          case components::nsgod: components_info<components::nsgod>::extract(msg->data.result); break;
           }
         } else {
           std::cerr << msg->msg << std::endl;
