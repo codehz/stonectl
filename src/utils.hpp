@@ -217,6 +217,7 @@ void update_progress() {
 }
 
 void start_nsgod(size_t) {
+  using namespace std::filesystem;
   pid_t pid;
   char const *const xarg[] = { "nsgod for stoneserver", nullptr };
   char const *const xenv[] = {
@@ -226,6 +227,10 @@ void start_nsgod(size_t) {
   };
   posix_spawn(&pid, ".stone/nsgod", nullptr, nullptr, (char *const *)xarg, (char *const *)xenv);
   wait(nullptr);
+  if (!exists(".stone/nsgod.socket")) {
+    std::cerr << "Failed to start daemon" << std::endl;
+    exit(EXIT_FAILURE);
+  }
 }
 
 std::string_view print_level(int level) {
