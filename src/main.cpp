@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
     curl_global_cleanup();
   });
   auto start = app.add_subcommand("start", "start service");
-  start->add_option("service", "start-service"_str, "target service to start")->check(CLI::ExistingDirectory & service_name_validator);
+  start->add_option("service", "start-service"_str, "target service to start")->required()->check(CLI::ExistingDirectory & service_name_validator);
   start->preparse_callback(start_nsgod);
   start->callback([] {
     handle_fail([] {
@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
     ep->wait();
   });
   auto stop = app.add_subcommand("stop", "kill service(s)");
-  stop->add_option("service", "stop-service"_vstr, "target service(s) to stop")->check(CLI::ExistingDirectory & service_name_validator)->expected(-1);
+  stop->add_option("service", "stop-service"_vstr, "target service(s) to stop")->required()->check(CLI::ExistingDirectory & service_name_validator)->expected(-1);
   stop->add_flag("--restart,!--no-restart", "stop-restart"_flag, "restart service after killed");
   stop->add_flag("--force", "stop-force"_flag, "force stop service(SIGKILL)");
   stop->callback([] {
@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
     ep->wait();
   });
   auto attach = app.add_subcommand("attach", "attach to service's command interface");
-  attach->add_option("service", "attach-service"_str, "target service name")->check(CLI::ExistingDirectory & service_name_validator);
+  attach->add_option("service", "attach-service"_str, "target service name")->required()->check(CLI::ExistingDirectory & service_name_validator);
   attach->add_option("--as", "attach-executor"_str, "executor name")->default_val("stonectl");
   attach->callback([] {
     handle_fail([] {
