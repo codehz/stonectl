@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
   });
   auto start = app.add_subcommand("start", "start service");
   start->add_option("service", "start-service"_str, "target service to start")->required()->check(CLI::ExistingDirectory & service_name_validator);
+  start->add_flag("--wait", "start-wait"_flag, "wait for started");
   start->preparse_callback(start_nsgod);
   start->callback([] {
     handle_fail([] {
@@ -172,14 +173,24 @@ int main(int argc, char **argv) {
                 .reset_timer = 1min,
               },
             };
+            if ("start-wait"_flag) {
+              nsgod().on("started", [](json data) {
+                if (data["service"] == "start-service"_str) {
+                  std::cout << "start-service"_str
+                            << " started" << std::endl;
+                  ep->shutdown();
+                }
+              });
+            }
             return nsgod().call("start", json::object({
                                              { "service", "start-service"_str },
                                              { "options", options },
                                          }));
           })
           .then([](json ret) {
-            std::cout << ret.dump(2) << std::endl;
-            ep->shutdown();
+            std::cout << "start-service"_str
+                      << " launched" << std::endl;
+            if (!"start-wait"_flag) ep->shutdown();
           })
           .fail(handle_fail<std::exception_ptr>);
     });
@@ -200,9 +211,13 @@ int main(int argc, char **argv) {
     ep->wait();
   });
   auto stop = app.add_subcommand("stop", "kill service(s)");
-  stop->add_option("service", "stop-service"_vstr, "target service(s) to stop")->required()->check(CLI::ExistingDirectory & service_name_validator)->expected(-1);
+  stop->add_option("service", "stop-service"_vstr, "target service(s) to stop")
+      ->required()
+      ->check(CLI::ExistingDirectory & service_name_validator)
+      ->expected(-1);
   stop->add_flag("--restart,!--no-restart", "stop-restart"_flag, "restart service after killed");
   stop->add_flag("--force", "stop-force"_flag, "force stop service(SIGKILL)");
+  stop->add_flag("--wait", "stop-wait"_flag, "wait for stopped");
   stop->callback([] {
     handle_fail([] {
       nsgod()
@@ -214,6 +229,16 @@ int main(int argc, char **argv) {
           })
           .then<promise<void>>([] {
             return promise<void>::map_all(std::vector<std::string>{ "stop-service"_vstr }, [](std::string const &input) -> promise<void> {
+              if ("stop-wait"_flag)
+                nsgod().on("stopped", [](json data) {
+                  static size_t killed = 0;
+                  if (std::find("stop-service"_vstr.begin(), "stop-service"_vstr.end(), data["service"]) != "stop-service"_vstr.end()) {
+                    killed++;
+                    std::cout << data["service"].get<std::string>() << " stopped" << std::endl;
+                  }
+                  if (killed == "stop-service"_vstr.size()) ep->shutdown();
+                  // if (data["service"] == "stop-service"_vstr) killed++;
+                });
               return nsgod()
                   .call("kill", json::object({
                                     { "service", input },
@@ -226,7 +251,7 @@ int main(int argc, char **argv) {
           .then([] {
             std::cout << "sent SIGTERM signal to "
                       << "stop-service"_vstr.size() << " service(s)" << std::endl;
-            ep->shutdown();
+            if (!"stop-wait"_flag) ep->shutdown();
           })
           .fail(handle_fail<std::exception_ptr>);
     });
