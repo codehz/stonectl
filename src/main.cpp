@@ -237,7 +237,6 @@ int main(int argc, char **argv) {
                     std::cout << data["service"].get<std::string>() << " stopped" << std::endl;
                   }
                   if (killed == "stop-service"_vstr.size()) ep->shutdown();
-                  // if (data["service"] == "stop-service"_vstr) killed++;
                 });
               return nsgod()
                   .call("kill", json::object({
