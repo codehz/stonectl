@@ -210,6 +210,28 @@ int main(int argc, char **argv) {
     });
     ep->wait();
   });
+  auto dump = app.add_subcommand("dump", "dump service stack");
+  dump->add_option("service", "dump-service"_str, "target service to dump")->required()->check(CLI::ExistingDirectory & service_name_validator);
+  dump->callback([] {
+    handle_fail([] {
+      nsgod()
+          .start()
+          .then<promise<void>>([] {
+            nsgod().on("output", [](json data) {
+              if (data["service"] == "dump-service"_str) { std::cout << data["data"].get<std::string>() << std::flush; }
+            });
+            return nsgod()
+                .call("kill", json::object({
+                                  { "service", "dump-service"_str },
+                                  { "signal", SIGUSR1 },
+                                  { "restart", 0 },
+                              }))
+                .then<void>([](json ret) {});
+          })
+          .fail(handle_fail<std::exception_ptr>);
+    });
+    ep->wait();
+  });
   auto stop = app.add_subcommand("stop", "kill service(s)");
   stop->add_option("service", "stop-service"_vstr, "target service(s) to stop")
       ->required()
@@ -224,7 +246,7 @@ int main(int argc, char **argv) {
           .start()
           .then<promise<void>>([] {
             return promise<void>::map_all(std::vector<std::string>{ "stop-service"_vstr }, [](std::string const &input) -> promise<void> {
-              return nsgod().call("status", json::object({ { "service", input } })).then<void>([](json ret) { return; });
+              return nsgod().call("status", json::object({ { "service", input } })).then<void>([](json ret) {});
             });
           })
           .then<promise<void>>([] {
@@ -244,7 +266,7 @@ int main(int argc, char **argv) {
                                     { "signal", SIGTERM },
                                     { "restart", "stop-restart"_flag ? 1 : -1 },
                                 }))
-                  .then<void>([](json ret) { return; });
+                  .then<void>([](json ret) {});
             });
           })
           .then([] {
